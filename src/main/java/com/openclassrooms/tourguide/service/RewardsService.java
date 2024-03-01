@@ -1,6 +1,8 @@
 package com.openclassrooms.tourguide.service;
 
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.springframework.stereotype.Service;
 
@@ -9,8 +11,8 @@ import gpsUtil.location.Attraction;
 import gpsUtil.location.Location;
 import gpsUtil.location.VisitedLocation;
 import rewardCentral.RewardCentral;
-import com.openclassrooms.tourguide.user.User;
-import com.openclassrooms.tourguide.user.UserReward;
+import com.openclassrooms.tourguide.model.User;
+import com.openclassrooms.tourguide.model.UserReward;
 
 @Service
 public class RewardsService {
@@ -37,19 +39,29 @@ public class RewardsService {
 	}
 	
 	public void calculateRewards(User user) {
+
 		List<VisitedLocation> userLocations = user.getVisitedLocations();
+
 		List<Attraction> attractions = gpsUtil.getAttractions();
-		
-		for(VisitedLocation visitedLocation : userLocations) {
-			for(Attraction attraction : attractions) {
-				if(user.getUserRewards().stream().filter(r -> r.attraction.attractionName.equals(attraction.attractionName)).count() == 0) {
-					if(nearAttraction(visitedLocation, attraction)) {
-						user.addUserReward(new UserReward(visitedLocation, attraction, getRewardPoints(attraction, user)));
+		Iterator<Attraction> attractionIterator = attractions.iterator();
+		CopyOnWriteArrayList<UserReward> userRewards = new CopyOnWriteArrayList<>(user.getUserRewards());
+
+		while(attractionIterator.hasNext()){
+			Attraction attraction = attractionIterator.next();
+			boolean match = userRewards.stream()
+					.noneMatch(r -> r.attraction.attractionName.equals(attraction.attractionName));
+			if(match)
+				for(VisitedLocation visitedLocation: userLocations){
+					if(nearAttraction(visitedLocation, attraction)){
+						userRewards.add(new UserReward(visitedLocation, attraction,
+								getRewardPoints(attraction, user)));
+						break;
 					}
 				}
-			}
 		}
+		user.setUserRewards(userRewards);
 	}
+
 	
 	public boolean isWithinAttractionProximity(Attraction attraction, Location location) {
 		return getDistance(attraction, location) > attractionProximityRange ? false : true;
