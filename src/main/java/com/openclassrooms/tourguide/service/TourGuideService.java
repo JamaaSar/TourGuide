@@ -4,11 +4,11 @@ import com.openclassrooms.tourguide.tracker.Tracker;
 import com.openclassrooms.tourguide.model.User;
 import com.openclassrooms.tourguide.model.UserReward;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -33,6 +33,8 @@ public class TourGuideService {
 	private static final String tripPricerApiKey = "test-server-api-key";
 	private Map<String, User> internalUserMap = new HashMap<>();
 	private final TourGuideTestModeService tourGuideTestModeService = new TourGuideTestModeService();
+	ExecutorService executorService = Executors.newFixedThreadPool(100);
+
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService){
 		this.gpsUtil = gpsUtil;
 		this.rewardsService = rewardsService;
@@ -83,22 +85,50 @@ public class TourGuideService {
 		return providers;
 	}
 
-	public VisitedLocation trackUserLocation(User user) {
+	public VisitedLocation trackUserLocation1(User user) {
+
 		VisitedLocation visitedLocation = gpsUtil.getUserLocation(user.getUserId());
 		user.addToVisitedLocations(visitedLocation);
 		rewardsService.calculateRewards(user);
 		return visitedLocation;
 	}
+	public VisitedLocation trackUserLocation(User user) {
+
+
+        CompletableFuture<VisitedLocation> visitedLocationsFuture =
+				CompletableFuture.supplyAsync(() -> gpsUtil.getUserLocation(user.getUserId()));
+		visitedLocationsFuture.thenAccept(user::addToVisitedLocations).join();
+
+
+		CompletableFuture<Void> calculateRewardsFuture =
+				visitedLocationsFuture.thenAcceptAsync(visitedLocation -> {
+					rewardsService.calculateRewards(user);
+				});
+
+		CompletableFuture.allOf(visitedLocationsFuture, calculateRewardsFuture).join();
+
+		return visitedLocationsFuture.join();
+	}
+	public void trackAllUsersLocations(List<User> users) {
+		List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+		users.forEach(user -> futures.add(
+				CompletableFuture.runAsync(() -> trackUserLocation(user), executorService)));
+
+		futures.forEach(CompletableFuture::join);
+
+		executorService.shutdown();
+
+	}
 
 	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation) {
-		List<Attraction> nearbyAttractions = new ArrayList<>();
-		for (Attraction attraction : gpsUtil.getAttractions()) {
-			if (rewardsService.isWithinAttractionProximity(attraction, visitedLocation.location)) {
-				nearbyAttractions.add(attraction);
-			}
-		}
-
-		return nearbyAttractions;
+		return gpsUtil.getAttractions()
+				.stream().sorted(
+						Comparator.comparingDouble(
+								attraction->
+										rewardsService.getDistance(visitedLocation.location, attraction)))
+				.limit(5)
+				.collect(Collectors.toList());
 	}
 
 	private void addShutDownHook() {
