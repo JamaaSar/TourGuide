@@ -1,8 +1,14 @@
 package com.openclassrooms.tourguide.service;
 
+import java.sql.Array;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -24,10 +30,14 @@ public class RewardsService {
 	private int attractionProximityRange = 200;
 	private final GpsUtil gpsUtil;
 	private final RewardCentral rewardsCentral;
-	
+	ExecutorService executorService = Executors.newFixedThreadPool(100);
+
+	private List<Attraction> gpsList = new ArrayList<>();
+
 	public RewardsService(GpsUtil gpsUtil, RewardCentral rewardCentral) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsCentral = rewardCentral;
+		this.gpsList = gpsUtil.getAttractions();
 	}
 	
 	public void setProximityBuffer(int proximityBuffer) {
@@ -37,14 +47,14 @@ public class RewardsService {
 	public void setDefaultProximityBuffer() {
 		proximityBuffer = defaultProximityBuffer;
 	}
-	
+
 	public void calculateRewards(User user) {
 
-		List<VisitedLocation> userLocations = user.getVisitedLocations();
+		List<VisitedLocation> userLocations = new CopyOnWriteArrayList<>(user.getVisitedLocations());
 
-		List<Attraction> attractions = gpsUtil.getAttractions();
-		Iterator<Attraction> attractionIterator = attractions.iterator();
+		Iterator<Attraction> attractionIterator = gpsList.iterator();
 		CopyOnWriteArrayList<UserReward> userRewards = new CopyOnWriteArrayList<>(user.getUserRewards());
+
 
 		while(attractionIterator.hasNext()){
 			Attraction attraction = attractionIterator.next();
@@ -60,6 +70,18 @@ public class RewardsService {
 				}
 		}
 		user.setUserRewards(userRewards);
+	}
+
+	public void calculateAllUsersRewards(List<User> users) {
+		List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+		users.forEach(user -> futures.add(
+				CompletableFuture.runAsync(() -> calculateRewards(user), executorService)));
+
+		futures.forEach(CompletableFuture::join);
+
+		executorService.shutdown();
+
 	}
 
 	
