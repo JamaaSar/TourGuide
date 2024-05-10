@@ -1,5 +1,7 @@
 package com.openclassrooms.tourguide.service;
 
+import com.openclassrooms.tourguide.dto.AttractionDTO;
+import com.openclassrooms.tourguide.dto.UserInfoDTO;
 import com.openclassrooms.tourguide.tracker.Tracker;
 import com.openclassrooms.tourguide.model.User;
 import com.openclassrooms.tourguide.model.UserReward;
@@ -8,7 +10,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -32,6 +33,7 @@ public class TourGuideService {
 	boolean testMode = true;
 	private static final String tripPricerApiKey = "test-server-api-key";
 	private Map<String, User> internalUserMap = new HashMap<>();
+
 	private final TourGuideTestModeService tourGuideTestModeService = new TourGuideTestModeService();
 	ExecutorService executorService = Executors.newFixedThreadPool(100);
 
@@ -53,6 +55,7 @@ public class TourGuideService {
 	}
 
 	public List<UserReward> getUserRewards(User user) {
+		rewardsService.calculateRewards(user);
 		return user.getUserRewards();
 	}
 
@@ -85,13 +88,6 @@ public class TourGuideService {
 		return providers;
 	}
 
-	public VisitedLocation trackUserLocation1(User user) {
-
-		VisitedLocation visitedLocation = gpsUtil.getUserLocation(user.getUserId());
-		user.addToVisitedLocations(visitedLocation);
-		rewardsService.calculateRewards(user);
-		return visitedLocation;
-	}
 	public VisitedLocation trackUserLocation(User user) {
 
 
@@ -129,6 +125,31 @@ public class TourGuideService {
 										rewardsService.getDistance(visitedLocation.location, attraction)))
 				.limit(5)
 				.collect(Collectors.toList());
+	}
+	public UserInfoDTO getUserInfo(VisitedLocation visitedLocation, UUID userId) {
+		List<Attraction> attractions = getNearByAttractions(visitedLocation);
+		UserInfoDTO userInfoDTO = new UserInfoDTO();
+		userInfoDTO.setNearestAttractionsList(mapperAttractionDto(attractions,
+				visitedLocation,   userId));
+		userInfoDTO.setTouristLocation(visitedLocation.location);
+
+		return userInfoDTO;
+	}
+	public List<AttractionDTO> mapperAttractionDto(List<Attraction> attractions,
+												   VisitedLocation visitedLocation,
+												   UUID userId){
+		List<AttractionDTO> attractionDTOS = new ArrayList<>();
+		for (Attraction a : attractions){
+			AttractionDTO attractionDTO = new AttractionDTO();
+			attractionDTO.setAttractionName(a.attractionName);
+			attractionDTO.setLattitude(a.latitude);
+			attractionDTO.setLongitude(a.longitude);
+			attractionDTO.setDistanceFromLocation(rewardsService.getDistance(visitedLocation.location, a));
+			attractionDTO.setRewardForVisiting(rewardsService.getRewardPoints(a, userId));
+			attractionDTOS.add(attractionDTO);
+		}
+		return  attractionDTOS;
+
 	}
 
 	private void addShutDownHook() {

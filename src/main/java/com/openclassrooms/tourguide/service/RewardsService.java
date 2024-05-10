@@ -1,14 +1,13 @@
 package com.openclassrooms.tourguide.service;
 
-import java.sql.Array;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -44,9 +43,6 @@ public class RewardsService {
 		this.proximityBuffer = proximityBuffer;
 	}
 	
-	public void setDefaultProximityBuffer() {
-		proximityBuffer = defaultProximityBuffer;
-	}
 
 	public void calculateRewards(User user) {
 
@@ -58,13 +54,14 @@ public class RewardsService {
 
 		while(attractionIterator.hasNext()){
 			Attraction attraction = attractionIterator.next();
-			boolean match = userRewards.stream()
-					.noneMatch(r -> r.attraction.attractionName.equals(attraction.attractionName));
-			if(match)
+			boolean match = !userRewards.isEmpty() && userRewards.stream()
+					.anyMatch(r -> r.attraction.attractionName.equals(attraction.attractionName));
+
+			if(!match)
 				for(VisitedLocation visitedLocation: userLocations){
 					if(nearAttraction(visitedLocation, attraction)){
 						userRewards.add(new UserReward(visitedLocation, attraction,
-								getRewardPoints(attraction, user)));
+								getRewardPoints(attraction, user.getUserId())));
 						break;
 					}
 				}
@@ -93,8 +90,8 @@ public class RewardsService {
 		return getDistance(attraction, visitedLocation.location) > proximityBuffer ? false : true;
 	}
 	
-	private int getRewardPoints(Attraction attraction, User user) {
-		return rewardsCentral.getAttractionRewardPoints(attraction.attractionId, user.getUserId());
+	protected int getRewardPoints(Attraction attraction, UUID userId) {
+		return rewardsCentral.getAttractionRewardPoints(attraction.attractionId, userId);
 	}
 	
 	public double getDistance(Location loc1, Location loc2) {

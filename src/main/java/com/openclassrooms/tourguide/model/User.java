@@ -33,16 +33,6 @@ public class User {
 		visitedLocations.add(visitedLocation);
 	}
 
-	public void clearVisitedLocations() {
-		visitedLocations.clear();
-	}
-	
-	public void addUserReward(UserReward userReward) {
-		if(userRewards.stream().filter(r -> !r.attraction.attractionName.equals(userReward.attraction)).count() == 0) {
-			userRewards.add(userReward);
-		}
-	}
-
 	public VisitedLocation getLastVisitedLocation() {
 		return visitedLocations.get(visitedLocations.size() - 1);
 	}
