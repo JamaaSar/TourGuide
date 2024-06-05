@@ -3,16 +3,16 @@
 
 # Technologies
 
-> Java 17.0.6
+> Java 21
 > Apache Maven 3.9.4
-> Spring Boot 3.1.4
-> Maven dependencies : (Lombok / Spring Web / Spring Data JPA JWT / Jacoco )
+> Spring Boot 3.2.4
+> Maven dependencies : (Lombok /Jacoco )
 
 
 # Getting Started :
 ### Clone or download
 
-> git clone git@github.com:JamaaSar/paymybud.git
+> git clone git@github.com:JamaaSar/TourGuide.git
 
 
 ### Use Maven to build application
